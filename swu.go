@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"time"
 
 	"github.com/google/go-querystring/query"
 )
@@ -55,14 +57,14 @@ type SWUEmail struct {
 }
 
 type SWUDripCampaign struct {
-	Recipient   *SWURecipient     `json:"recipient,omitempty"`
-	CC          []*SWURecipient   `json:"cc,omitempty"`
-	BCC         []*SWURecipient   `json:"bcc,omitempty"`
-	Sender      *SWUSender        `json:"sender,omitempty"`
-	EmailData   map[string]string `json:"email_data,omitempty"`
-	Tags        []string          `json:"tags,omitempty"`
-	ESPAccount  string            `json:"esp_account,omitempty"`
-	Locale      string            `json:"locale,omitempty"`
+	Recipient  *SWURecipient     `json:"recipient,omitempty"`
+	CC         []*SWURecipient   `json:"cc,omitempty"`
+	BCC        []*SWURecipient   `json:"bcc,omitempty"`
+	Sender     *SWUSender        `json:"sender,omitempty"`
+	EmailData  map[string]string `json:"email_data,omitempty"`
+	Tags       []string          `json:"tags,omitempty"`
+	ESPAccount string            `json:"esp_account,omitempty"`
+	Locale     string            `json:"locale,omitempty"`
 }
 
 type SWURecipient struct {
@@ -128,8 +130,18 @@ func (e *SWUError) Error() string {
 }
 
 func New(apiKey string) *SWUClient {
+	c := &http.Client{
+		Transport: &http.Transport{
+			Dial: (&net.Dialer{
+				Timeout:   50 * time.Second,
+				KeepAlive: 50 * time.Second,
+			}).Dial,
+			TLSHandshakeTimeout:   50 * time.Second,
+			ResponseHeaderTimeout: 50 * time.Second,
+		},
+	}
 	return &SWUClient{
-		Client: http.DefaultClient,
+		Client: c,
 		apiKey: apiKey,
 		URL:    SWUEndpoint,
 	}
@@ -240,7 +252,7 @@ func (c *SWUClient) makeRequest(method, endpoint string, body io.Reader, result 
 	res, err := c.Client.Do(r)
 	if err != nil {
 		return &SWUError{
-			Code:    res.StatusCode,
+			Code:    500,
 			Message: err.Error(),
 		}
 	}
